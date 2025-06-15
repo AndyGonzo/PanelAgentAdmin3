@@ -1,0 +1,4 @@
+[build]
+  base = "config-admin"
+  publish = "build"
+  command = "npm install && npm run build"
