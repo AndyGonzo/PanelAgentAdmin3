@@ -53,7 +53,7 @@ export const saveConfigValue = async (
 ): Promise<ConfigValue> => {
   const response = await axios.post(
     `${API_BASE_URL}/tenant/${tenantId}/config/${key}`,
-    { value },
+    value,
     {
       headers: {
         'X-Tenant-ID': tenantId
