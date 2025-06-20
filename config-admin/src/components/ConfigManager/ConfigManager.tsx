@@ -574,7 +574,8 @@ const ConfigManagerContent: React.FC = () => {
         {/* Main content */}
         <Box sx={{ 
           flex: 1, 
-          overflow: 'auto',
+          overflowY: 'auto',
+          height: '100%',
           bgcolor: '#f5f5f5',
           p: 2
         }}>
@@ -584,7 +585,6 @@ const ConfigManagerContent: React.FC = () => {
               height: '100%',
               bgcolor: 'white',
               borderRadius: 2,
-              overflow: 'hidden',
               boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
             }}
           >
