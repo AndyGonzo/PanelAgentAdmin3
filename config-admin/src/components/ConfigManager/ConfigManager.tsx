@@ -188,7 +188,7 @@ const ConfigList: React.FC<ConfigListProps> = ({
             }}
           >
             <ListItemText
-              primary={def.name}
+              primary={def.title || def.name}
               secondary={def.description}
               primaryTypographyProps={{
                 fontWeight: 500,
@@ -277,7 +277,7 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <div>
             <Typography variant="h4" gutterBottom sx={{ color: 'primary.main' }}>
-              {definition.name}
+              {definition.title || definition.name}
             </Typography>
             <Typography variant="body1" color="text.secondary" paragraph>
               {definition.description}
@@ -299,7 +299,7 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
                 }
               }}
             >
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSaving ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </Box>
@@ -316,23 +316,23 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
             borderColor: 'primary.main'
           }}>
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              {configValue.lastModified && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary" display="block" fontWeight={500}>
-                    Last Modified
-                  </Typography>
-                  <Typography variant="body2" color="text.primary">
-                    {new Date(configValue.lastModified).toLocaleString()}
-                  </Typography>
-                </Box>
-              )}
               {configValue.version !== undefined && (
-                <Box>
+                <Box sx={{ mr: 4 }}>
                   <Typography variant="caption" color="text.secondary" display="block" fontWeight={500}>
                     Version
                   </Typography>
                   <Typography variant="body2" color="text.primary">
                     {configValue.version}
+                  </Typography>
+                </Box>
+              )}
+              {configValue.lastModified && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block" fontWeight={500}>
+                    Last Updated
+                  </Typography>
+                  <Typography variant="body2" color="text.primary">
+                    {new Date(configValue.lastModified).toLocaleString()}
                   </Typography>
                 </Box>
               )}
@@ -352,16 +352,14 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
           }}
         >
           <Form
-            schema={definition.schema}
-            formData={formData || {}}
-            onChange={handleChange}
-            onSubmit={handleSubmit}
-            validator={validator}
-          >
-            <Button type="submit" variant="contained" color="primary" sx={{ mt: 2 }}>
-              Save
-            </Button>
-          </Form>
+  schema={definition.schema}
+  formData={formData || {}}
+  onChange={handleChange}
+  onSubmit={handleSubmit}
+  validator={validator}
+>
+  
+</Form>
         </Paper>
       </Paper>
     </Box>
@@ -550,23 +548,25 @@ const ConfigManagerContent: React.FC = () => {
             
             {/* Refresh button */}
             <Tooltip title="Refresh">
-              <IconButton 
-                onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: ['definitions'] });
-                  if (selectedKey) {
-                    queryClient.invalidateQueries({ queryKey: ['config', selectedKey] });
-                  }
-                }}
-                disabled={isLoadingDefinitions || isLoadingConfig}
-                sx={{
-                  color: 'text.secondary',
-                  '&:hover': {
-                    bgcolor: 'action.hover'
-                  }
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
+              <span>
+                <IconButton 
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ['definitions'] });
+                    if (selectedKey) {
+                      queryClient.invalidateQueries({ queryKey: ['config', selectedKey] });
+                    }
+                  }}
+                  disabled={isLoadingDefinitions || isLoadingConfig}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': {
+                      bgcolor: 'action.hover'
+                    }
+                  }}
+                >
+                  <RefreshIcon />
+                </IconButton>
+              </span>
             </Tooltip>
           </Toolbar>
         </AppBar>

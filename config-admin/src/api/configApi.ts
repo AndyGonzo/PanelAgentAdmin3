@@ -7,6 +7,7 @@ export interface ConfigDefinition {
   name: string;
   description: string;
   schema: Record<string, any>;
+  title?: string;
 }
 
 export interface ConfigValue {

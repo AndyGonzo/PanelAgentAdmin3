@@ -35,7 +35,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <div style={{ height: '100vh', overflow: 'hidden' }}>
+      <div style={{ height: '100vh', overflow: 'auto' }}>
         <ConfigManager />
       </div>
     </ThemeProvider>
