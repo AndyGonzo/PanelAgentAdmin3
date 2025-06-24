@@ -189,14 +189,9 @@ const ConfigList: React.FC<ConfigListProps> = ({
           >
             <ListItemText
               primary={def.title || def.name}
-              secondary={def.description}
               primaryTypographyProps={{
                 fontWeight: 500,
                 fontSize: '0.9rem',
-              }}
-              secondaryTypographyProps={{
-                variant: 'body2',
-                color: 'text.secondary',
               }}
             />
           </ListItem>
@@ -223,6 +218,7 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
 }) => {
   const [formData, setFormData] = useState<any>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const formRef = React.useRef<any>(null);
 
   useEffect(() => {
     if (configValue) {
@@ -285,7 +281,6 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
           </div>
           <div>
             <Button
-              type="submit"
               variant="contained"
               color="primary"
               startIcon={<SaveIcon />}
@@ -296,6 +291,11 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
                 transition: 'all 0.2s',
                 '&:hover': {
                   transform: 'translateY(-1px)',
+                }
+              }}
+              onClick={() => {
+                if (formRef.current) {
+                  formRef.current.submit();
                 }
               }}
             >
@@ -352,14 +352,15 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
           }}
         >
           <Form
-  schema={definition.schema}
-  formData={formData || {}}
-  onChange={handleChange}
-  onSubmit={handleSubmit}
-  validator={validator}
->
-  
-</Form>
+            schema={definition.schema}
+            formData={formData || {}}
+            onChange={handleChange}
+            onSubmit={handleSubmit}
+            validator={validator}
+            showErrorList={false}
+            uiSchema={{ 'ui:options': { submitButtonOptions: { norender: true } } }}
+            ref={formRef}
+          />
         </Paper>
       </Paper>
     </Box>
