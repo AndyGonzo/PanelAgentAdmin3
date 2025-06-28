@@ -11,8 +11,9 @@ export interface ConfigDefinition {
 }
 
 export interface ConfigValue {
+  // UWAGA: Zmieniono lastModified na updated_at zgodnie ze specyfikacją API
   value: any;
-  lastModified?: string;
+  updated_at?: string;
   version?: number;
 }
 

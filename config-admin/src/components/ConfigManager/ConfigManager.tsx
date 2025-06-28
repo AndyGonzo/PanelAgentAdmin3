@@ -326,13 +326,13 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
                   </Typography>
                 </Box>
               )}
-              {configValue.lastModified && (
+              {configValue.updated_at && (
                 <Box>
                   <Typography variant="caption" color="text.secondary" display="block" fontWeight={500}>
                     Last Updated
                   </Typography>
                   <Typography variant="body2" color="text.primary">
-                    {new Date(configValue.lastModified).toLocaleString()}
+                    {new Date(configValue.updated_at).toLocaleString()}
                   </Typography>
                 </Box>
               )}
