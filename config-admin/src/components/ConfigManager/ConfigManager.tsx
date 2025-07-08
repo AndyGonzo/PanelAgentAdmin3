@@ -376,7 +376,8 @@ const TENANTS = [
   'dev3471',
   'dev1982',
   'dev8291',
-  'dev8211'
+  'dev8211',
+  'dev9462'
 ];
 
 const ConfigManagerContent: React.FC = () => {
