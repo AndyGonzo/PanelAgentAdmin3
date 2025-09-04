@@ -2,15 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, List, ListItem, ListItemText, Typography, 
   CircularProgress, Button, Paper, Divider, Alert, Snackbar, AppBar, 
-  Toolbar, IconButton, Tooltip, MenuItem, FormControl, InputLabel, Select,
+  Toolbar, IconButton, Tooltip, FormControl, InputLabel,
   ThemeProvider, createTheme
 } from '@mui/material';
-import { SelectChangeEvent } from '@mui/material/Select';
 import { withTheme, IChangeEvent } from '@rjsf/core';
 import { Theme as MuiTheme } from '@rjsf/mui';
 import validator from '@rjsf/validator-ajv8';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchDefinitions, fetchConfigValue, saveConfigValue, ConfigDefinition, ConfigValue } from '../../api/configApi';
+import { fetchDefinitions, fetchConfigValue, saveConfigValue, ConfigDefinition, ConfigValue, setAuthToken, clearAuthToken, login } from '../../api/configApi';
+import TextareaWidget from './TextareaWidget';
 
 // Icons
 const SaveIcon = () => (
@@ -26,7 +26,6 @@ const RefreshIcon = () => (
     <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
   </svg>
 );
-
 // Create a form component with MUI theme
 const Form = withTheme(MuiTheme);
 
@@ -188,7 +187,7 @@ const ConfigList: React.FC<ConfigListProps> = ({
             }}
           >
             <ListItemText
-              primary={def.title || def.name}
+              primary={def.title}
               primaryTypographyProps={{
                 fontWeight: 500,
                 fontSize: '0.9rem',
@@ -273,7 +272,7 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <div>
             <Typography variant="h4" gutterBottom sx={{ color: 'primary.main' }}>
-              {definition.title || definition.name}
+              {definition.title}
             </Typography>
             <Typography variant="body1" color="text.secondary" paragraph>
               {definition.description}
@@ -358,8 +357,15 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
             onSubmit={handleSubmit}
             validator={validator}
             showErrorList={false}
-            uiSchema={{ 'ui:options': { submitButtonOptions: { norender: true } } }}
             ref={formRef}
+            uiSchema={{
+              instructions: {
+                'ui:widget': 'textarea',
+                'ui:options': {
+                  rows: 8,
+                },
+              },
+            }}
           />
         </Paper>
       </Paper>
@@ -367,23 +373,14 @@ const ConfigForm: React.FC<ConfigFormProps> = ({
   );
 };
 
-const TENANTS = [
-  'dev',
-  'selfcare',
-  'dev9145',
-  'dev2730',
-  'dev1924',
-  'dev3471',
-  'dev1982',
-  'dev8291',
-  'dev8211',
-  'dev9462',
-  'dev4598'
-];
+ 
 
 const ConfigManagerContent: React.FC = () => {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [selectedTenant, setSelectedTenant] = useState<string>('dev3471');
+  const [authToken, setAuthTokenState] = useState<string>('');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [tenant, setTenant] = useState<string>('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ 
     open: false, 
     message: '', 
@@ -391,34 +388,92 @@ const ConfigManagerContent: React.FC = () => {
   });
   const queryClient = useQueryClient();
   
-  // Reset selected config when tenant changes
+  // Decode JWT payload to read tenant-like claim
+  const decodeJwt = (token?: string): Record<string, any> | null => {
+    if (!token) return null;
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+      const payload = parts[1]
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      const json = decodeURIComponent(
+        atob(payload)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
+
+  const parsedClaims = React.useMemo(() => decodeJwt(authToken), [authToken]);
+  const tenantFromToken: string | undefined = React.useMemo(() => {
+    if (!parsedClaims) return undefined;
+    const candidates = [
+      'tenant', 'tenant_id', 'tenantId', 'realm', 'org', 'organization', 'tid', 'project', 'site'
+    ];
+    for (const key of candidates) {
+      const v = parsedClaims[key];
+      if (typeof v === 'string' && v) return v;
+    }
+    return undefined;
+  }, [parsedClaims]);
+  
+  // Load token from localStorage on mount
   useEffect(() => {
-    setSelectedKey(null);
-    queryClient.invalidateQueries({ queryKey: ['definitions'] });
-  }, [selectedTenant, queryClient]);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('config_store_token') : null;
+    if (token) {
+      setAuthTokenState(token);
+    }
+    const storedTenant = typeof window !== 'undefined' ? localStorage.getItem('config_store_tenant') : null;
+    if (storedTenant) {
+      setTenant(storedTenant);
+    }
+  }, []);
+
+  // Keyboard shortcut: Ctrl+L to logout
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        handleLogout();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Fetch definitions
-  const { data: definitions = [], isLoading: isLoadingDefinitions } = useQuery<ConfigDefinition[]>({
-    queryKey: ['definitions', selectedTenant],
-    queryFn: () => fetchDefinitions(selectedTenant),
+  const { data: definitions = [], isLoading: isLoadingDefinitions, error: definitionsError } = useQuery<ConfigDefinition[]>({
+    queryKey: ['definitions'],
+    queryFn: () => {
+      return fetchDefinitions();
+    },
     onSuccess: (data) => {
+      console.log('Definitions loaded:', data);
       if (data.length > 0 && !selectedKey) {
         setSelectedKey(data[0].key);
       }
+    },
+    onError: (error) => {
+      console.error('Error loading definitions:', error);
     }
   });
 
   // Fetch selected config value
   const { data: configValue, isLoading: isLoadingConfig } = useQuery<ConfigValue | null>({
-    queryKey: ['config', selectedTenant, selectedKey],
-    queryFn: () => selectedKey ? fetchConfigValue(selectedTenant, selectedKey) : Promise.resolve(null),
+    queryKey: ['config', selectedKey],
+    queryFn: () => selectedKey ? fetchConfigValue(selectedKey) : Promise.resolve(null),
     enabled: !!selectedKey
   });
 
   // Save config mutation
   const saveMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: any }) =>
-      saveConfigValue(selectedTenant, key, value),
+      saveConfigValue(key, value),
     onSuccess: (_, { key }) => {
       queryClient.invalidateQueries({ queryKey: ['definitions'] });
       queryClient.invalidateQueries({ queryKey: ['config', key] });
@@ -451,8 +506,56 @@ const ConfigManagerContent: React.FC = () => {
     }
   };
   
-  const handleTenantChange = (event: SelectChangeEvent<string>) => {
-    setSelectedTenant(event.target.value);
+  const handleSetToken = () => {
+    try {
+      if (!authToken) {
+        setSnackbar({ open: true, message: 'Provide a token first', severity: 'error' });
+        return;
+      }
+      setAuthToken(authToken);
+      setSnackbar({ open: true, message: 'Token set successfully', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['definitions'] });
+      if (selectedKey) {
+        queryClient.invalidateQueries({ queryKey: ['config', selectedKey] });
+      }
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Failed to set token', severity: 'error' });
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      await login(username, password, tenant);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('config_store_token') : null;
+      if (token) setAuthTokenState(token);
+      if (tenant && typeof window !== 'undefined') {
+        localStorage.setItem('config_store_tenant', tenant);
+      }
+      setSnackbar({ open: true, message: 'Logged in successfully', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['definitions'] });
+      if (selectedKey) {
+        queryClient.invalidateQueries({ queryKey: ['config', selectedKey] });
+      }
+    } catch (e: any) {
+      setSnackbar({ open: true, message: `Login failed: ${e?.message ?? 'Unknown error'}` as string, severity: 'error' });
+    }
+  };
+
+  const handleLogout = () => {
+    try {
+      clearAuthToken();
+      setAuthTokenState('');
+      setSelectedKey(null);
+      setTenant('');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('config_store_tenant');
+      }
+      setSnackbar({ open: true, message: 'Logged out', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['definitions'] });
+      queryClient.invalidateQueries({ queryKey: ['config'] });
+    } catch (e: any) {
+      setSnackbar({ open: true, message: `Logout failed: ${e?.message ?? 'Unknown error'}`, severity: 'error' });
+    }
   };
 
   const selectedDefinition = definitions.find(def => def.key === selectedKey) || null;
@@ -500,54 +603,48 @@ const ConfigManagerContent: React.FC = () => {
             >
               Configuration Manager
             </Typography>
-            
-            {/* Tenant selector */}
-            <FormControl 
-              variant="outlined" 
-              size="small" 
-              sx={{ 
-                minWidth: 200, 
-                mr: 2,
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: 'white'
-                }
-              }}
-            >
-              <InputLabel>Tenant</InputLabel>
-              <Select
-                value={selectedTenant}
-                onChange={handleTenantChange}
-                label="Tenant"
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      mt: 1,
-                      borderRadius: 2,
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      '& .MuiMenuItem-root': {
-                        px: 2,
-                        py: 1.5,
-                        '&:hover': {
-                          bgcolor: 'action.hover'
-                        }
-                      },
-                      '& .Mui-selected': {
-                        bgcolor: 'action.selected',
-                        '&:hover': {
-                          bgcolor: 'action.hover'
-                        }
-                      }
-                    }
-                  }
-                }}
-              >
-                {TENANTS.map((tenant) => (
-                  <MenuItem key={tenant} value={tenant}>
-                    {tenant}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+
+            {/* Auth controls */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel shrink htmlFor="auth-token-input">Token</InputLabel>
+                <input
+                  id="auth-token-input"
+                  placeholder="Paste Bearer token"
+                  value={authToken}
+                  onChange={(e) => setAuthTokenState((e.target as HTMLInputElement).value)}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', width: 220 }}
+                />
+              </FormControl>
+              <Button variant="outlined" onClick={handleSetToken}>Set Token</Button>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <input
+                placeholder="Tenant"
+                value={tenant}
+                onChange={(e) => setTenant((e.target as HTMLInputElement).value)}
+                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+              />
+              <input
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername((e.target as HTMLInputElement).value)}
+                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
+                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+              />
+              <Button variant="contained" onClick={handleLogin}>Login</Button>
+              <Button variant="text" color="inherit" onClick={handleLogout}>Logout</Button>
+              <Typography variant="body2" sx={{ ml: 1, color: authToken ? 'success.main' : 'text.secondary' }}>
+                {authToken ? `Authenticated${tenantFromToken ? ` (Tenant: ${tenantFromToken})` : ''}` : 'Not authenticated'}
+              </Typography>
+            </Box>
             
             {/* Refresh button */}
             <Tooltip title="Refresh">
