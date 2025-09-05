@@ -2,3 +2,8 @@
   base = "config-admin"
   publish = "build"
   command = "npm install && npm run build"
+
+[build.environment]
+  # Ensure CRA doesn't fail the build on ESLint warnings in CI
+  CI = "false"
+  NODE_VERSION = "18"

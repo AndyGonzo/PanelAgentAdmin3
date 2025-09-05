@@ -434,17 +434,7 @@ const ConfigManagerContent: React.FC = () => {
     }
   }, []);
 
-  // Keyboard shortcut: Ctrl+L to logout
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
-        e.preventDefault();
-        handleLogout();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // Keyboard shortcut effect moved below after handleLogout to satisfy TS ordering
 
   // Fetch definitions
   const { data: definitions = [], isLoading: isLoadingDefinitions, error: definitionsError } = useQuery<ConfigDefinition[]>({
@@ -462,6 +452,13 @@ const ConfigManagerContent: React.FC = () => {
       console.error('Error loading definitions:', error);
     }
   });
+
+  // Surface definitions loading errors to the UI (prevents unused variable warning)
+  useEffect(() => {
+    if (definitionsError) {
+      setSnackbar({ open: true, message: 'Failed to load definitions', severity: 'error' });
+    }
+  }, [definitionsError]);
 
   // Fetch selected config value
   const { data: configValue, isLoading: isLoadingConfig } = useQuery<ConfigValue | null>({
@@ -541,7 +538,7 @@ const ConfigManagerContent: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = React.useCallback(() => {
     try {
       clearAuthToken();
       setAuthTokenState('');
@@ -556,7 +553,19 @@ const ConfigManagerContent: React.FC = () => {
     } catch (e: any) {
       setSnackbar({ open: true, message: `Logout failed: ${e?.message ?? 'Unknown error'}`, severity: 'error' });
     }
-  };
+  }, [queryClient]);
+
+  // Keyboard shortcut: Ctrl+L to logout
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        handleLogout();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleLogout]);
 
   const selectedDefinition = definitions.find(def => def.key === selectedKey) || null;
 
